@@ -1,122 +1,218 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(TaskApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+final auth = FirebaseAuth.instance;
+final firestore = FirebaseFirestore.instance;
 
-  // This widget is the root of your application.
+class TaskApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      title: 'CW06',
+      theme: ThemeData(primarySwatch: Colors.indigo),
+      home: StreamBuilder<User?>(
+        stream: auth.authStateChanges(),
+        builder: (context, snapshot) {
+          return snapshot.hasData ? TaskListScreen() : AuthScreen();
+        },
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class AuthScreen extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _AuthScreenState createState() => _AuthScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _AuthScreenState extends State<AuthScreen> {
+  final emailCtrl = TextEditingController();
+  final passCtrl = TextEditingController();
+  bool isLogin = true;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  void _authUser() async {
+    try {
+      if (isLogin) {
+        await auth.signInWithEmailAndPassword(email: emailCtrl.text, password: passCtrl.text);
+      } else {
+        await auth.createUserWithEmailAndPassword(email: emailCtrl.text, password: passCtrl.text);
+      }
+    } catch (e) {
+      showDialog(context: context, builder: (_) => AlertDialog(content: Text(e.toString())));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      appBar: AppBar(title: Text(isLogin ? 'Login' : 'Register')),
+      body: Padding(
+        padding: EdgeInsets.all(20),
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+          children: [
+            TextField(controller: emailCtrl, decoration: InputDecoration(labelText: 'Email')),
+            TextField(controller: passCtrl, decoration: InputDecoration(labelText: 'Password'), obscureText: true),
+            SizedBox(height: 20),
+            ElevatedButton(onPressed: _authUser, child: Text(isLogin ? 'Login' : 'Register')),
+            TextButton(
+              onPressed: () => setState(() => isLogin = !isLogin),
+              child: Text(isLogin ? 'Create Account' : 'Back to Login'),
+            )
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+}
+
+class TaskListScreen extends StatefulWidget {
+  @override
+  _TaskListScreenState createState() => _TaskListScreenState();
+}
+
+class _TaskListScreenState extends State<TaskListScreen> {
+  final taskCtrl = TextEditingController();
+  String get userId => auth.currentUser!.uid;
+  CollectionReference get tasks => firestore.collection('users').doc(userId).collection('tasks');
+
+  void _addTask() {
+    final title = taskCtrl.text.trim();
+    if (title.isEmpty) return;
+    tasks.add({'title': title, 'completed': false, 'timestamp': FieldValue.serverTimestamp()});
+    taskCtrl.clear();
+  }
+
+  void _toggleTask(String id, bool done) => tasks.doc(id).update({'completed': !done});
+  void _deleteTask(String id) => tasks.doc(id).delete();
+
+  void _addSubtask(String taskId) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Add Subtask'),
+        content: TextField(controller: ctrl, decoration: InputDecoration(hintText: 'Subtask title')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final title = ctrl.text.trim();
+              if (title.isNotEmpty) {
+                tasks.doc(taskId).collection('subtasks').add({
+                  'title': title,
+                  'completed': false,
+                  'time': FieldValue.serverTimestamp(),
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _toggleSub(String taskId, String subId, bool done) =>
+      tasks.doc(taskId).collection('subtasks').doc(subId).update({'completed': !done});
+
+  void _deleteSub(String taskId, String subId) =>
+      tasks.doc(taskId).collection('subtasks').doc(subId).delete();
+
+  Widget _buildSubtasks(String taskId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: tasks.doc(taskId).collection('subtasks').orderBy('time').snapshots(),
+      builder: (_, snap) {
+        if (!snap.hasData) return SizedBox();
+        return Column(
+          children: snap.data!.docs.map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final title = data['title'] ?? '';
+            final done = data['completed'] ?? false;
+
+            return ListTile(
+              leading: Checkbox(value: done, onChanged: (_) => _toggleSub(taskId, doc.id, done)),
+              title: Text(title, style: TextStyle(decoration: done ? TextDecoration.lineThrough : null)),
+              trailing: IconButton(
+                icon: Icon(Icons.delete, size: 20),
+                onPressed: () => _deleteSub(taskId, doc.id),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Your Tasks'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await auth.signOut();
+            },
+          )
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(child: TextField(controller: taskCtrl, decoration: InputDecoration(labelText: 'New task'))),
+                SizedBox(width: 8),
+                ElevatedButton(onPressed: _addTask, child: Icon(Icons.add)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: tasks.orderBy('timestamp', descending: true).snapshots(),
+              builder: (_, snapshot) {
+                if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+                return ListView(
+                  children: snapshot.data!.docs.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final title = data['title'] ?? '';
+                    final done = data['completed'] ?? false;
+                    final id = doc.id;
+
+                    return Card(
+                      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: ExpansionTile(
+                        title: Row(
+                          children: [
+                            Checkbox(value: done, onChanged: (_) => _toggleTask(id, done)),
+                            Expanded(
+                              child: Text(title, style: TextStyle(decoration: done ? TextDecoration.lineThrough : null)),
+                            ),
+                            IconButton(icon: Icon(Icons.delete), onPressed: () => _deleteTask(id)),
+                            IconButton(icon: Icon(Icons.add_task), onPressed: () => _addSubtask(id)),
+                          ],
+                        ),
+                        children: [_buildSubtasks(id)],
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
